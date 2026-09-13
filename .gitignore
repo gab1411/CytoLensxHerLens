@@ -1,0 +1,45 @@
+# Android Studio
+*.iml
+.idea/
+.idea/libraries/
+.idea/workspace.xml
+.idea/.name
+
+# Gradle
+.gradle/
+**/build/
+build/
+
+# Local config
+local.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Android generated
+/captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+
+# NDK / CMake
+.externalNativeBuild
+.cmake
+
+# Keystore (jangan upload password signing)
+*.jks
+*.keystore
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+
+# Native build
+obj/
+libs/
