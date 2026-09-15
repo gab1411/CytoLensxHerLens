@@ -1,21 +1,22 @@
 package com.jiangdg.demo
 
+import android.Manifest
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.Toast
-import android.widget.ImageView.ScaleType
+import androidx.core.app.ActivityCompat
 
 import androidx.activity.OnBackPressedCallback
 
@@ -27,6 +28,8 @@ import com.jiangdg.ausbc.camera.bean.CameraRequest
 import com.jiangdg.ausbc.widget.AspectRatioTextureView
 import com.jiangdg.ausbc.widget.IAspectRatio
 import com.jiangdg.demo.databinding.FragmentHerLensBinding
+
+import com.jiangdg.bluetooth.BleManager
 
 class HerLensFragment : CameraFragment() {
     private lateinit var binding: FragmentHerLensBinding
@@ -63,6 +66,10 @@ class HerLensFragment : CameraFragment() {
     private var afterImagePath: String? = null
 
     private var greenFilterActive = false
+
+    private lateinit var bleManager: BleManager
+
+    private var currentZoom = 1
 
     private val aiRunnable =
         Runnable {
@@ -107,6 +114,73 @@ class HerLensFragment : CameraFragment() {
             savedInstanceState
         )
 
+        bleManager=BleManager(requireContext())
+
+        bleManager.onConnectionChanged={connected->
+
+            activity?.runOnUiThread{
+
+                binding.tvHardwareStatus.text =
+                    if(connected)
+                        "Hardware: Connected"
+                    else
+                        "Hardware: Not Connected"
+
+            }
+        }
+
+        bleManager.onStateReceived={state->
+
+            activity?.runOnUiThread{
+
+                binding.tvLedStatus.text =
+                    if(state.contains("\"led\":true"))
+                        "LED: ON"
+                    else
+                        "LED: OFF"
+
+            }
+        }
+
+        bleManager.onEventReceived={event->
+
+            activity?.runOnUiThread{
+
+                when(event){
+
+                    "CAPTURE"->{
+                        capturePhoto()
+                    }
+
+                    "RETAKE"->{
+                        clearReview()
+                        showCameraPage()
+                    }
+
+                    "ZOOM_IN" -> {
+                        applyDigitalZoom(currentZoom+1)
+                    }
+
+                    "ZOOM_OUT" -> {
+                        applyDigitalZoom(currentZoom-1)
+                    }
+                }
+            }
+        }
+
+        bleManager.startScan()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            ActivityCompat.requestPermissions(
+                requireActivity(),
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ),
+                100
+            )
+
+        }
+
         requireActivity()
             .onBackPressedDispatcher
             .addCallback(
@@ -122,18 +196,13 @@ class HerLensFragment : CameraFragment() {
                                 showExaminationPage()
                             }
 
-
                             Page.REVIEW -> {
-
                                 clearReview()
-
                                 showCameraPage()
                             }
 
                             Page.LOADING -> {
-
                                 cancelAi()
-
                                 showExaminationPage()
                             }
 
@@ -380,17 +449,16 @@ class HerLensFragment : CameraFragment() {
 
     private fun applyDigitalZoom(level:Int){
 
-        val zoom = when(level){
+        currentZoom = level.coerceIn(1,3)
+
+        val zoom = when(currentZoom){
             1 -> 1.35f
             2 -> 1.5f
             3 -> 2f
             else -> 1f
         }
 
-
-        val preview =
-            binding.cameraViewContainer.getChildAt(0)
-
+        val preview = binding.cameraViewContainer.getChildAt(0)
 
         preview?.let {
 
@@ -936,6 +1004,12 @@ class HerLensFragment : CameraFragment() {
     }
 
     override fun onDestroyView(){
+
+        if(::bleManager.isInitialized){
+            bleManager.stopScan()
+        }
+
+
         debugHandler.removeCallbacks(
             debugRunnable
         )
